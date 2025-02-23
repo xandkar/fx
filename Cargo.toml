@@ -1,0 +1,21 @@
+[package]
+name = "dux"
+version = "0.1.0"
+description = "Disk Usage eXperiments"
+repository = "https://github.com/xandkar/dux"
+authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]
+keywords = []
+categories = ["command-line-utilities"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+edition = "2024"
+
+[dependencies]
+anyhow = { version = "1.0.96", features = ["backtrace"] }
+bytesize = "1.3.0"
+clap = { version = "4.5.30", features = ["derive"] }
+comfy-table = "7.1.4"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+[dev-dependencies]
