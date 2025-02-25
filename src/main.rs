@@ -7,9 +7,9 @@ struct Cli {
     #[clap(short = 'H', long)]
     human: bool,
 
-    /// Report files in addition to directories.
+    /// Report files instead of directories.
     #[clap(short, long)]
-    all: bool,
+    files: bool,
 
     /// Report only top-N space users.
     #[clap(short, long)]
@@ -23,8 +23,8 @@ struct Cli {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    dux::tracing::init(cli.log_level)?;
+    dux::tracing_init(cli.log_level)?;
     tracing::debug!(?cli, "Starting.");
-    dux::explore(&cli.path, cli.all, cli.top, cli.human)?;
+    dux::explore(&cli.path, cli.files, cli.top, cli.human)?;
     Ok(())
 }
