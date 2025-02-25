@@ -1,11 +1,13 @@
+pub mod tracing;
+
 use std::{
-    collections::HashMap,
+    io,
     path::{Path, PathBuf},
 };
 
 use anyhow::Context;
-
-pub mod tracing;
+use dashmap::DashMap;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 pub fn explore(
     path: &Path,
@@ -14,8 +16,7 @@ pub fn explore(
     human: bool,
 ) -> anyhow::Result<()> {
     let mut frontier: Vec<PathBuf> = vec![path.to_path_buf()];
-    let mut sizes_all: HashMap<PathBuf, u64> = HashMap::new();
-    let mut sizes_dir: HashMap<PathBuf, u64> = HashMap::new();
+    let mut files: Vec<PathBuf> = vec![path.to_path_buf()];
     loop {
         match frontier.pop() {
             None => {
@@ -38,25 +39,42 @@ pub fn explore(
                 }
             }
             Some(path) if path.is_file() => {
-                let size = path
-                    .metadata()
-                    .context(format!("Failed to read metadata of {path:?}"))?
-                    .len();
-                sizes_all.insert(path.to_owned(), size);
-                let ancestors = path.ancestors().skip(1); // Skip self.
-                for ancestor in ancestors {
-                    if ancestor.as_os_str().len() > 0 {
-                        *sizes_dir.entry(ancestor.to_owned()).or_insert(0) +=
-                            size;
-                        *sizes_all.entry(ancestor.to_owned()).or_insert(0) +=
-                            size;
-                    }
-                }
+                files.push(path);
             }
             // Ignoring others.
             Some(_) => {}
         }
     }
+
+    let sizes_all: DashMap<PathBuf, u64> = DashMap::new();
+    let sizes_dir: DashMap<PathBuf, u64> = DashMap::new();
+
+    let mut errors: Vec<(PathBuf, io::Error)> = files
+        .par_iter()
+        .filter_map(|path| {
+            path.metadata()
+                .inspect(|m| {
+                    let size = m.len();
+                    let ancestors = path.ancestors().skip(1); // Skip self.
+                    for ancestor in ancestors {
+                        if ancestor.as_os_str().len() > 0 {
+                            *sizes_dir
+                                .entry(ancestor.to_owned())
+                                .or_insert(0) += size;
+                            *sizes_all
+                                .entry(ancestor.to_owned())
+                                .or_insert(0) += size;
+                        }
+                    }
+                })
+                .err()
+                .map(|e| (path.to_owned(), e))
+        })
+        .collect();
+    if let Some((_path, e)) = errors.pop() {
+        Err(e)?;
+    }
+
     // Yeah, yeah - we could mark path/node types instead of keeping separate maps.
     let sizes = if report_files { sizes_all } else { sizes_dir };
     let mut sizes: Vec<(PathBuf, u64)> = sizes.into_iter().collect();
