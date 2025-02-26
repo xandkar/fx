@@ -12,7 +12,7 @@ struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 enum Cmd {
-    Top(dux::cmd::top::Cmd),
+    Top(fx::cmd::top::Cmd),
     // TODO Duplicates.
     // TODO Empties.
     // TODO Broken links.
@@ -21,7 +21,7 @@ enum Cmd {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    dux::tracing::init(cli.log_level)?;
+    fx::tracing::init(cli.log_level)?;
     let span = tracing::debug_span!(env!("CARGO_PKG_NAME"));
     let _span_guard = span.enter();
     tracing::debug!(?cli, "Starting.");

@@ -1,10 +1,10 @@
 [package]
-name = "dux"
-version = "0.3.0"
-description = "Disk Usage eXperiments"
-repository = "https://github.com/xandkar/dux"
+name = "fx"
+version = "0.4.0"
+description = "Filesystem eXplorer"
+repository = "https://github.com/xandkar/fx"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]
-keywords = []
+keywords = ["filesystem", "storage", "disk", "usage", "analyzer"]
 categories = ["command-line-utilities"]
 license = "GPL-3.0-or-later"
 readme = "README.md"
