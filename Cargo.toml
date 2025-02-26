@@ -1,6 +1,6 @@
 [package]
 name = "dux"
-version = "0.2.0"
+version = "0.3.0"
 description = "Disk Usage eXperiments"
 repository = "https://github.com/xandkar/dux"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]

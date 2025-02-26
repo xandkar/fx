@@ -1,30 +1,32 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 
 #[derive(Parser, Debug)]
 struct Cli {
-    #[clap(short = 'H', long)]
-    human: bool,
-
-    /// Report files instead of directories.
-    #[clap(short, long)]
-    files: bool,
-
-    /// Report only top-N space users.
-    #[clap(short, long)]
-    top: Option<usize>,
-
+    /// Enable logging, at the given level.
     #[clap(short, long)]
     log_level: Option<tracing::Level>,
 
-    path: PathBuf,
+    #[clap(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Cmd {
+    Top(dux::cmd::top::Cmd),
+    // TODO Duplicates.
+    // TODO Empties.
+    // TODO Broken links.
+    // TODO Link cycles.
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    dux::tracing_init(cli.log_level)?;
+    dux::tracing::init(cli.log_level)?;
+    let span = tracing::debug_span!(env!("CARGO_PKG_NAME"));
+    let _span_guard = span.enter();
     tracing::debug!(?cli, "Starting.");
-    dux::explore(&cli.path, cli.files, cli.top, cli.human)?;
+    match cli.cmd {
+        Cmd::Top(cmd) => cmd.run()?,
+    }
     Ok(())
 }
