@@ -5,7 +5,7 @@ use std::{
 
 use rayon::iter::IntoParallelRefIterator;
 
-use crate::files;
+use crate::data;
 
 #[derive(clap::Args, Debug)]
 pub struct Cmd {
@@ -38,7 +38,22 @@ pub fn top(
     report_limit: Option<usize>,
     human: bool,
 ) -> anyhow::Result<()> {
-    let files: HashMap<PathBuf, u64> = files::find_with_sizes(root_path)?;
+    let files: HashMap<PathBuf, u64> = data::collect(root_path)?
+        .filter_map(|meta_result| match meta_result {
+            Ok(
+                meta @ data::Meta {
+                    typ: data::FileType::Regular,
+                    ..
+                },
+            ) => Some((meta.path, meta.size)),
+            Ok(_) => None,
+            Err(error) => {
+                tracing::error!(?error, "Metadata collection failed.");
+                None
+            }
+        })
+        .collect();
+
     let sizes: HashMap<PathBuf, u64> = {
         if report_files {
             files
