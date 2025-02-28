@@ -1,10 +1,10 @@
 use clap::Parser;
+use tracing::level_filters::LevelFilter;
 
 #[derive(Parser, Debug)]
 struct Cli {
-    /// Enable logging, at the given level.
-    #[clap(short, long)]
-    log_level: Option<tracing::Level>,
+    #[clap(short, long = "log", default_value_t = LevelFilter::ERROR)]
+    log_level: LevelFilter,
 
     #[clap(subcommand)]
     cmd: Cmd,
