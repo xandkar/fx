@@ -1,6 +1,6 @@
 [package]
 name = "fx"
-version = "0.4.2"
+version = "0.4.3"
 description = "Filesystem eXplorer"
 repository = "https://github.com/xandkar/fx"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]

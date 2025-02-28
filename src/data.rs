@@ -1,8 +1,10 @@
 use std::{
-    fs, io,
+    fs,
     os::unix::fs::{FileTypeExt, MetadataExt},
     path::{Path, PathBuf},
 };
+
+use anyhow::Context;
 
 // Ref: https://pubs.opengroup.org/onlinepubs/009604499/basedefs/sys/stat.h.html
 #[derive(Debug)]
@@ -45,14 +47,21 @@ pub struct Meta {
 }
 
 impl Meta {
-    fn from_path(path: &Path) -> io::Result<Self> {
-        let meta = path.symlink_metadata()?;
+    fn from_path(path: &Path) -> anyhow::Result<Self> {
+        let meta = path
+            .symlink_metadata()
+            .context(format!("Failed to read metadata from path={path:?}"))?;
         let selph = Self::from_fs_metadata(path.to_owned(), meta)?;
         Ok(selph)
     }
 
-    fn from_entry(entry: &fs::DirEntry) -> io::Result<Self> {
-        let meta = entry.metadata()?;
+    fn from_dir_entry(entry: &fs::DirEntry) -> anyhow::Result<Self> {
+        let meta = entry.metadata().with_context(|| {
+            format!(
+                "Failed to read metadata from dir entry with path={:?}",
+                entry.path()
+            )
+        })?;
         let selph = Self::from_fs_metadata(entry.path(), meta)?;
         Ok(selph)
     }
@@ -60,7 +69,7 @@ impl Meta {
     fn from_fs_metadata(
         path: PathBuf,
         meta: fs::Metadata,
-    ) -> io::Result<Self> {
+    ) -> anyhow::Result<Self> {
         let size = meta.len();
         let mode = meta.mode();
         let perms = mode & 0o777;
@@ -69,7 +78,9 @@ impl Meta {
             _ if file_type.is_file() => FileType::Regular,
             _ if file_type.is_dir() => FileType::Directory,
             _ if file_type.is_symlink() => {
-                let dst = path.read_link()?;
+                let dst = path.read_link().context(format!(
+                    "Failed to read symlink dst from path={path:?}"
+                ))?;
                 FileType::Symlink { dst }
             }
             _ if file_type.is_fifo() => FileType::Fifo,
@@ -102,7 +113,7 @@ impl Meta {
 
 pub fn collect(
     root_path: &Path,
-) -> io::Result<impl Iterator<Item = io::Result<Meta>>> {
+) -> anyhow::Result<impl Iterator<Item = anyhow::Result<Meta>>> {
     Collect::new(root_path)
 }
 
@@ -111,7 +122,7 @@ struct Collect {
 }
 
 impl Collect {
-    fn new(root_path: &Path) -> io::Result<Self> {
+    fn new(root_path: &Path) -> anyhow::Result<Self> {
         let mut frontier: Vec<Meta> = Vec::new();
         frontier.push(Meta::from_path(root_path)?);
         Ok(Self { frontier })
@@ -119,20 +130,28 @@ impl Collect {
 }
 
 impl Iterator for Collect {
-    type Item = io::Result<Meta>;
+    type Item = anyhow::Result<Meta>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let meta = self.frontier.pop()?;
-        if let FileType::Directory = meta.typ {
-            match meta.path.read_dir() {
+        if let Meta {
+            path,
+            typ: FileType::Directory,
+            ..
+        } = &meta
+        {
+            match path
+                .read_dir()
+                .context(format!("Failed to read dir at path={:?}", path))
+            {
                 Err(e) => {
-                    return Some(Err(e));
+                    return Some(Err(e.into()));
                 }
                 Ok(read_dir) => {
                     for entry_result in read_dir {
                         match entry_result {
-                            Err(e) => return Some(Err(e)),
-                            Ok(entry) => match Meta::from_entry(&entry) {
+                            Err(e) => return Some(Err(e.into())),
+                            Ok(entry) => match Meta::from_dir_entry(&entry) {
                                 Ok(meta) => {
                                     self.frontier.push(meta);
                                 }
