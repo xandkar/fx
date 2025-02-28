@@ -16,6 +16,9 @@ enum Cmd {
     /// Find top-N users of storage space. Aggregated directories by default,
     /// files optionally. Ignores symlinks.
     Top(fx::cmd::top::Cmd),
+
+    /// Find dangling symlinks (i.e. those with non-existing targets).
+    Dang(fx::cmd::dang::Cmd),
     // TODO Dups(fx::cmd::dups::Cmd), // Find duplicate files.
     // TODO Snap(fx::cmd::snap::Cmd), // Collect all metadata and store it.
     // TODO Diff(fx::cmd::diff::Cmd), // Compare changes in metadata in time.
@@ -32,6 +35,7 @@ fn main() -> anyhow::Result<()> {
     tracing::debug!(?cli, "Starting.");
     match cli.cmd {
         Cmd::Top(cmd) => cmd.run()?,
+        Cmd::Dang(cmd) => cmd.run()?,
     }
     Ok(())
 }
