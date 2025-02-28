@@ -2,6 +2,7 @@ use clap::Parser;
 use tracing::level_filters::LevelFilter;
 
 #[derive(Parser, Debug)]
+#[command(version, about)]
 struct Cli {
     #[clap(short, long = "log", default_value_t = LevelFilter::ERROR)]
     log_level: LevelFilter,
