@@ -13,11 +13,15 @@ struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 enum Cmd {
+    /// Find top-N users of storage space. Aggregated directories by default,
+    /// files optionally. Ignores symlinks.
     Top(fx::cmd::top::Cmd),
-    // TODO Duplicates.
+    // TODO Dups(fx::cmd::dups::Cmd), // Find duplicate files.
+    // TODO Snap(fx::cmd::snap::Cmd), // Collect all metadata and store it.
+    // TODO Diff(fx::cmd::diff::Cmd), // Compare changes in metadata in time.
+    // TODO Loop(fx::cmd::loop::Cmd), // Find link cycles.
     // TODO Empties.
     // TODO Broken links.
-    // TODO Link cycles.
 }
 
 fn main() -> anyhow::Result<()> {
