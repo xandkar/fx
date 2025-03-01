@@ -111,17 +111,41 @@ impl Meta {
     }
 }
 
-pub fn collect(
+pub fn find(
     root_path: &Path,
 ) -> anyhow::Result<impl Iterator<Item = anyhow::Result<Meta>>> {
-    Collect::new(root_path)
+    Find::new(root_path)
 }
 
-struct Collect {
+pub fn find_symlinks(
+    root_path: &Path,
+) -> anyhow::Result<impl Iterator<Item = (PathBuf, PathBuf)>> {
+    find(root_path).and_then(|metas| {
+        Ok(metas.filter_map(|meta_result| match meta_result {
+            Ok(Meta {
+                path: src,
+                typ: FileType::Symlink { dst },
+                ..
+            }) => Some((src, dst)),
+            Ok(_) => None,
+            Err(error) => {
+                let error: String = error
+                    .chain()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" -> ");
+                tracing::error!(%error, "Metadata fetch failed.");
+                None
+            }
+        }))
+    })
+}
+
+struct Find {
     frontier: Vec<Meta>,
 }
 
-impl Collect {
+impl Find {
     fn new(root_path: &Path) -> anyhow::Result<Self> {
         let mut frontier: Vec<Meta> = Vec::new();
         frontier.push(Meta::from_path(root_path)?);
@@ -129,7 +153,7 @@ impl Collect {
     }
 }
 
-impl Iterator for Collect {
+impl Iterator for Find {
     type Item = anyhow::Result<Meta>;
 
     fn next(&mut self) -> Option<Self::Item> {

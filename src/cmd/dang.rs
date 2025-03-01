@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::data::{self, Meta};
+use crate::data;
 
 #[derive(clap::Args, Debug)]
 pub struct Cmd {
@@ -48,37 +48,22 @@ pub fn dang(
 fn dangling_symlinks(
     root_path: &Path,
 ) -> anyhow::Result<impl Iterator<Item = (PathBuf, PathBuf)>> {
-    let dangling_symlinks = data::collect(root_path)?
-        .filter_map(|meta_result| match meta_result {
-            Ok(Meta {
-                path: src,
-                typ: data::FileType::Symlink { dst },
-                ..
-            }) => Some((src, dst)),
-            Ok(_) => None,
-            Err(error) => {
-                let error: String = error
-                    .chain()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<String>>()
-                    .join(" -> ");
-                tracing::error!(%error, "Metadata fetch failed.");
-                None
+    let dangling_symlinks =
+        data::find_symlinks(root_path)?.filter(|(src, _)| {
+            match src.canonicalize() {
+                Ok(_) => false,
+                Err(error) => match error.kind() {
+                    io::ErrorKind::NotFound => true,
+                    _ => {
+                        tracing::error!(
+                            %error,
+                            path = ?src,
+                            "Failed to canonicalize symlink path."
+                        );
+                        false
+                    }
+                },
             }
-        })
-        .filter(|(src, _)| match src.canonicalize() {
-            Ok(_) => false,
-            Err(error) => match error.kind() {
-                io::ErrorKind::NotFound => true,
-                _ => {
-                    tracing::error!(
-                        %error,
-                        path = ?src,
-                        "Failed to canonicalize symlink path."
-                    );
-                    false
-                }
-            },
         });
     Ok(dangling_symlinks)
 }

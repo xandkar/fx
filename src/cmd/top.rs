@@ -38,7 +38,7 @@ pub fn top(
     report_limit: Option<usize>,
     human: bool,
 ) -> anyhow::Result<()> {
-    let files: HashMap<PathBuf, u64> = data::collect(root_path)?
+    let files: HashMap<PathBuf, u64> = data::find(root_path)?
         .filter_map(|meta_result| match meta_result {
             Ok(
                 meta @ data::Meta {
