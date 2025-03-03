@@ -7,7 +7,7 @@ use std::{
 use anyhow::Context;
 
 // Ref: https://pubs.opengroup.org/onlinepubs/009604499/basedefs/sys/stat.h.html
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum FileType {
     Regular,
     Directory,
@@ -22,7 +22,7 @@ pub enum FileType {
     Unknown,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Meta {
     pub path: PathBuf,
     pub typ: FileType,
@@ -47,7 +47,14 @@ pub struct Meta {
 }
 
 impl Meta {
-    fn from_path(path: &Path) -> anyhow::Result<Self> {
+    pub fn is_symlink(&self) -> bool {
+        match self.typ {
+            FileType::Symlink { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn from_path(path: &Path) -> anyhow::Result<Self> {
         let meta = path
             .symlink_metadata()
             .context(format!("Failed to read metadata from path={path:?}"))?;
@@ -55,7 +62,7 @@ impl Meta {
         Ok(selph)
     }
 
-    fn from_dir_entry(entry: &fs::DirEntry) -> anyhow::Result<Self> {
+    pub fn from_dir_entry(entry: &fs::DirEntry) -> anyhow::Result<Self> {
         let meta = entry.metadata().with_context(|| {
             format!(
                 "Failed to read metadata from dir entry with path={:?}",
@@ -148,7 +155,7 @@ struct Find {
 impl Find {
     fn new(root_path: &Path) -> anyhow::Result<Self> {
         let mut frontier: Vec<Meta> = Vec::new();
-        frontier.push(Meta::from_path(root_path)?);
+        frontier.push(Meta::from_path(&root_path)?);
         Ok(Self { frontier })
     }
 }

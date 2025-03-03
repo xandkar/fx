@@ -19,12 +19,13 @@ enum Cmd {
 
     /// Find dangling symlinks (i.e. those with non-existing targets).
     Dang(fx::cmd::dang::Cmd),
+
+    /// Find symlink cycles.
+    Loops(fx::cmd::loops::Cmd),
     // TODO Dups(fx::cmd::dups::Cmd), // Find duplicate files.
     // TODO Snap(fx::cmd::snap::Cmd), // Collect all metadata and store it.
     // TODO Diff(fx::cmd::diff::Cmd), // Compare changes in metadata in time.
-    // TODO Loop(fx::cmd::loop::Cmd), // Find link cycles.
     // TODO Empties.
-    // TODO Broken links.
 }
 
 fn main() -> anyhow::Result<()> {
@@ -36,6 +37,7 @@ fn main() -> anyhow::Result<()> {
     match cli.cmd {
         Cmd::Top(cmd) => cmd.run()?,
         Cmd::Dang(cmd) => cmd.run()?,
+        Cmd::Loops(cmd) => cmd.run()?,
     }
     Ok(())
 }
