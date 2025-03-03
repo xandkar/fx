@@ -1,7 +1,7 @@
 [package]
 name = "fx"
-version = "0.6.0"
-description = "Filesystem eXplorer"
+version = "0.6.1"
+description = "Filetree eXploratory analyzer"
 repository = "https://github.com/xandkar/fx"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]
 keywords = ["filesystem", "storage", "disk", "usage", "analyzer"]

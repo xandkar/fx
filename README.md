@@ -1,4 +1,4 @@
 fx
 ==
 
-Filesystem eXplorer
+Filetree eXploratory analyzer.
