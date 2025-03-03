@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use rayon::iter::IntoParallelRefIterator;
 
 use crate::data;
@@ -26,7 +27,14 @@ pub struct Cmd {
 
 impl Cmd {
     pub fn run(&self) -> anyhow::Result<()> {
-        top(&self.root_path, self.files, Some(self.limit), self.human)?;
+        let given = &self.root_path;
+        let canonicalized = self
+            .root_path
+            .canonicalize()
+            .context(format!("Failed to canonicalize path={:?}", given))?;
+        tracing::debug!(?given, ?canonicalized, "Canonicalized root path.");
+        let root_path = canonicalized;
+        top(&root_path, self.files, Some(self.limit), self.human)?;
         Ok(())
     }
 }
