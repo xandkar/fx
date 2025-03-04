@@ -82,7 +82,9 @@ where
                 let mut refined_groups: HashMap<Vec<u8>, Vec<Meta>> =
                     HashMap::new();
                 for (id, member) in group
-                    .par_iter()
+                    // XXX Parallelizing here seems to make things ~20% slower.
+                    // .par_iter()
+                    .iter()
                     .filter_map(|member| match grouper(&member) {
                         Err(error) => {
                             tracing::error!(
