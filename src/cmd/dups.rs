@@ -85,7 +85,7 @@ where
                     // XXX Parallelizing here seems to make things ~20% slower.
                     // .par_iter()
                     .iter()
-                    .filter_map(|member| match grouper(&member) {
+                    .filter_map(|member| match grouper(member) {
                         Err(error) => {
                             tracing::error!(
                                 ?error,
@@ -100,7 +100,7 @@ where
                 {
                     refined_groups
                         .entry(id)
-                        .or_insert_with(|| Vec::new())
+                        .or_default()
                         .push(member.clone());
                 }
                 refined_groups

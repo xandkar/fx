@@ -134,8 +134,7 @@ pub fn find(
 pub fn find_symlinks(
     root_path: &Path,
 ) -> anyhow::Result<impl Iterator<Item = (PathBuf, PathBuf)>> {
-    find(root_path).and_then(|metas| {
-        Ok(metas.filter_map(|meta_result| match meta_result {
+    find(root_path).map(|metas| metas.filter_map(|meta_result| match meta_result {
             Ok(Meta {
                 path: src,
                 typ: FileType::Symlink { dst },
@@ -152,7 +151,6 @@ pub fn find_symlinks(
                 None
             }
         }))
-    })
 }
 
 struct Find {
@@ -162,7 +160,7 @@ struct Find {
 impl Find {
     fn new(root_path: &Path) -> anyhow::Result<Self> {
         let mut frontier: Vec<Meta> = Vec::new();
-        frontier.push(Meta::from_path(&root_path)?);
+        frontier.push(Meta::from_path(root_path)?);
         Ok(Self { frontier })
     }
 }
@@ -183,7 +181,7 @@ impl Iterator for Find {
                 .context(format!("Failed to read dir at path={:?}", path))
             {
                 Err(e) => {
-                    return Some(Err(e.into()));
+                    return Some(Err(e));
                 }
                 Ok(read_dir) => {
                     for entry_result in read_dir {

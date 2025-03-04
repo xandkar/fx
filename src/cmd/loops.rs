@@ -43,7 +43,7 @@ pub fn loops(root_path: &Path, null_line_sep: bool) -> anyhow::Result<()> {
         if let Some(inode) = find_cycling_inode(&link_meta)? {
             index
                 .entry(inode)
-                .or_insert_with(|| HashSet::new())
+                .or_default()
                 .insert(link_meta.path.clone());
         }
     }
@@ -74,7 +74,7 @@ fn find_cycling_inode(entry_path: &Meta) -> anyhow::Result<Option<u64>> {
                     // it cannot be a symlink.
                     unreachable!("Symlink path has no parent: {src:?}")
                 });
-                let dst = crate::path::normalize(src_dir, &dst);
+                let dst = crate::path::normalize(src_dir, dst);
                 // Symlink might be dangling, which for the purpose of
                 // finding loops we can just ignore and move on.
                 if let Ok(meta) = Meta::from_path(&dst) {
