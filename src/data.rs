@@ -54,6 +54,13 @@ impl Meta {
         }
     }
 
+    pub fn is_regular_file(&self) -> bool {
+        match self.typ {
+            FileType::Regular => true,
+            _ => false,
+        }
+    }
+
     pub fn from_path(path: &Path) -> anyhow::Result<Self> {
         let meta = path
             .symlink_metadata()
