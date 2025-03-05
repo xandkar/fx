@@ -25,6 +25,14 @@ pub struct Cmd {
     #[clap(short, long = "chunk", default_value_t = 8192)]
     chunk_size: usize,
 
+    /// Enable BLAKE3 pass.
+    #[clap(long = "blake3")]
+    enable_blake3_pass: bool,
+
+    /// Enable SHA2-512 pass.
+    #[clap(long = "sha")]
+    enable_sha2_512_pass: bool,
+
     #[clap(default_value = ".")]
     root_path: PathBuf,
 }
@@ -38,7 +46,13 @@ impl Cmd {
             .context(format!("Failed to canonicalize path={:?}", given))?;
         tracing::debug!(?given, ?canonicalized, "Canonicalized root path.");
         let root_path = canonicalized;
-        dups(&root_path, self.sample_size, self.chunk_size)?;
+        dups(
+            &root_path,
+            self.sample_size,
+            self.chunk_size,
+            self.enable_blake3_pass,
+            self.enable_sha2_512_pass,
+        )?;
         Ok(())
     }
 }
@@ -48,6 +62,8 @@ pub fn dups(
     root_path: &Path,
     sample_size: usize,
     chunk_size: usize,
+    enable_blake3_pass: bool,
+    enable_sha2_512_pass: bool,
 ) -> anyhow::Result<()> {
     let mut groups: Vec<Vec<Meta>> = vec![
         data::find(root_path)?
@@ -61,7 +77,12 @@ pub fn dups(
     //      certainty, but is a special case in that even though it is
     //      most certain it is also cheapest.
 
-    for f in groupers(sample_size, chunk_size) {
+    for f in groupers(
+        sample_size,
+        chunk_size,
+        enable_blake3_pass,
+        enable_sha2_512_pass,
+    ) {
         groups = refine(&groups, f)?;
     }
 
@@ -128,8 +149,12 @@ where
 fn groupers(
     sample_size: usize,
     chunk_size: usize,
+    enable_blake3_pass: bool,
+    enable_sha2_512_pass: bool,
 ) -> Vec<Box<dyn Send + Sync + Fn(&Meta) -> anyhow::Result<Vec<u8>>>> {
-    vec![
+    let mut groupers: Vec<
+        Box<dyn Send + Sync + Fn(&Meta) -> anyhow::Result<Vec<u8>>>,
+    > = vec![
         // 1: by size
         Box::new(|m| Ok(m.size.to_le_bytes().to_vec())),
         // 2: by head bytes
@@ -164,9 +189,14 @@ fn groupers(
         Box::new(move |m| {
             hash::xxh(&m.path, chunk_size).map(|h| h.to_le_bytes().to_vec())
         }),
+    ];
+    if enable_blake3_pass {
         // 5: by hash: blake3
-        Box::new(move |m| hash::blake3(&m.path, chunk_size)),
+        groupers.push(Box::new(move |m| hash::blake3(&m.path, chunk_size)));
+    }
+    if enable_sha2_512_pass {
         // 6: by hash: sha2-512
-        Box::new(move |m| hash::sha2_512(&m.path, chunk_size)),
-    ]
+        groupers.push(Box::new(move |m| hash::sha2_512(&m.path, chunk_size)));
+    }
+    groupers
 }
