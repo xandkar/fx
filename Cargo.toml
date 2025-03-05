@@ -1,6 +1,6 @@
 [package]
 name = "fx"
-version = "0.9.0"
+version = "0.9.1"
 description = "Filetree eXploratory analyzer"
 repository = "https://github.com/xandkar/fx"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]
