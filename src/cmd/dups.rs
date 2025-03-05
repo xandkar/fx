@@ -16,6 +16,15 @@ use crate::{
 
 #[derive(clap::Args, Debug)]
 pub struct Cmd {
+    /// For partial file reads. Byte size of samples collected from
+    /// heads and mids of files, as a cheap filter before hashing.
+    #[clap(short, long = "sample", default_value_t = 8192)]
+    sample_size: usize,
+
+    /// For full-file reads during hashing. Byte size of chunks to read at a time.
+    #[clap(short, long = "chunk", default_value_t = 8192)]
+    chunk_size: usize,
+
     #[clap(default_value = ".")]
     root_path: PathBuf,
 }
@@ -29,15 +38,17 @@ impl Cmd {
             .context(format!("Failed to canonicalize path={:?}", given))?;
         tracing::debug!(?given, ?canonicalized, "Canonicalized root path.");
         let root_path = canonicalized;
-        dups(&root_path)?;
+        dups(&root_path, self.sample_size, self.chunk_size)?;
         Ok(())
     }
 }
 
 #[tracing::instrument]
-pub fn dups(root_path: &Path) -> anyhow::Result<()> {
-    let chunk_size: usize = 4096;
-
+pub fn dups(
+    root_path: &Path,
+    sample_size: usize,
+    chunk_size: usize,
+) -> anyhow::Result<()> {
     let mut groups: Vec<Vec<Meta>> = vec![
         data::find(root_path)?
             .filter_map(Result::ok)
@@ -50,8 +61,8 @@ pub fn dups(root_path: &Path) -> anyhow::Result<()> {
     //      certainty, but is a special case in that even though it is
     //      most certain it is also cheapest.
 
-    for grouper in groupers(chunk_size) {
-        groups = refine(&groups, grouper)?;
+    for f in groupers(sample_size, chunk_size) {
+        groups = refine(&groups, f)?;
     }
 
     // TODO Optional last pass should be byte-by-bye comparisson.
@@ -115,6 +126,7 @@ where
 }
 
 fn groupers(
+    sample_size: usize,
     chunk_size: usize,
 ) -> Vec<Box<dyn Send + Sync + Fn(&Meta) -> anyhow::Result<Vec<u8>>>> {
     vec![
@@ -126,7 +138,7 @@ fn groupers(
                       path, size: total, ..
                   }| {
                 let head_size =
-                    std::cmp::min(usize::try_from(*total)?, chunk_size);
+                    std::cmp::min(usize::try_from(*total)?, sample_size);
                 let mut file = fs::File::open(path)?;
                 let mut buf = vec![0u8; head_size];
                 file.read(&mut buf)?;
@@ -138,9 +150,9 @@ fn groupers(
             move |Meta {
                       path, size: total, ..
                   }| {
-                let start: u64 = total / u64::try_from(chunk_size)? / 2;
+                let start: u64 = total / u64::try_from(sample_size)? / 2;
                 let len: usize =
-                    std::cmp::min(usize::try_from(*total)?, chunk_size);
+                    std::cmp::min(usize::try_from(*total)?, sample_size);
                 let mut file = fs::File::open(path)?;
                 file.seek(SeekFrom::Start(start))?;
                 let mut buf = vec![0u8; len];
