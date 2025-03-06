@@ -50,24 +50,15 @@ pub struct Meta {
 
 impl Meta {
     pub fn is_symlink(&self) -> bool {
-        match self.typ {
-            FileType::Symlink { .. } => true,
-            _ => false,
-        }
+        matches!(self.typ, FileType::Symlink { .. })
     }
 
     pub fn is_regular_file(&self) -> bool {
-        match self.typ {
-            FileType::Regular => true,
-            _ => false,
-        }
+        matches!(self.typ, FileType::Regular)
     }
 
     pub fn is_directory(&self) -> bool {
-        match self.typ {
-            FileType::Directory => true,
-            _ => false,
-        }
+        matches!(self.typ, FileType::Directory)
     }
 
     pub fn from_path(path: &Path) -> anyhow::Result<Self> {
