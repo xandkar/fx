@@ -1,4 +1,6 @@
 use std::{
+    collections::HashSet,
+    ffi::{OsStr, OsString},
     fs,
     os::unix::fs::{FileTypeExt, MetadataExt},
     path::{Path, PathBuf},
@@ -57,6 +59,13 @@ impl Meta {
     pub fn is_regular_file(&self) -> bool {
         match self.typ {
             FileType::Regular => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_directory(&self) -> bool {
+        match self.typ {
+            FileType::Directory => true,
             _ => false,
         }
     }
@@ -128,13 +137,24 @@ impl Meta {
 pub fn find(
     root_path: &Path,
 ) -> anyhow::Result<impl Iterator<Item = anyhow::Result<Meta>>> {
-    Find::new(root_path)
+    let skip_dirs: Vec<OsString> = vec![];
+    let skip_prefixes: Vec<PathBuf> = vec![];
+    Find::new(root_path, skip_dirs, skip_prefixes)
+}
+
+pub fn find_while_skipping<S: AsRef<OsStr>, P: AsRef<Path>>(
+    root_path: &Path,
+    skip_dirs: Vec<S>,
+    skip_prefixes: Vec<P>,
+) -> anyhow::Result<impl Iterator<Item = anyhow::Result<Meta>>> {
+    Find::new(root_path, skip_dirs, skip_prefixes)
 }
 
 pub fn find_symlinks(
     root_path: &Path,
 ) -> anyhow::Result<impl Iterator<Item = (PathBuf, PathBuf)>> {
-    find(root_path).map(|metas| metas.filter_map(|meta_result| match meta_result {
+    find(root_path).map(|metas| {
+        metas.filter_map(|meta_result| match meta_result {
             Ok(Meta {
                 path: src,
                 typ: FileType::Symlink { dst },
@@ -150,18 +170,60 @@ pub fn find_symlinks(
                 tracing::error!(%error, "Metadata fetch failed.");
                 None
             }
-        }))
+        })
+    })
 }
 
 struct Find {
     frontier: Vec<Meta>,
+    skip_dirs: HashSet<OsString>,
+    skip_prefixes: HashSet<PathBuf>,
 }
 
 impl Find {
-    fn new(root_path: &Path) -> anyhow::Result<Self> {
-        let mut frontier: Vec<Meta> = Vec::new();
-        frontier.push(Meta::from_path(root_path)?);
-        Ok(Self { frontier })
+    fn new<S: AsRef<OsStr>, P: AsRef<Path>>(
+        root_path: &Path,
+        skip_dirs: Vec<S>,
+        skip_prefixes: Vec<P>,
+    ) -> anyhow::Result<Self> {
+        let meta = Meta::from_path(root_path)?;
+        let skip_dirs: HashSet<OsString> = skip_dirs
+            .into_iter()
+            .map(|s| s.as_ref().to_owned())
+            .collect();
+        let skip_prefixes: HashSet<PathBuf> = skip_prefixes
+            .into_iter()
+            .map(|p| p.as_ref().to_owned())
+            .collect();
+        let mut selph = Self {
+            frontier: Vec::new(),
+            skip_dirs,
+            skip_prefixes,
+        };
+        if !selph.est_omittendus(&meta) {
+            selph.frontier.push(meta);
+        }
+        Ok(selph)
+    }
+
+    fn est_omittendus(&self, meta: &Meta) -> bool {
+        self.est_omittendus_praefixo(&meta.path)
+            || (meta.is_directory()
+                && meta
+                    .path
+                    .file_name()
+                    .map(|name| self.est_omittendus_nomine(name))
+                    .unwrap_or(false))
+    }
+
+    fn est_omittendus_praefixo(&self, path: &Path) -> bool {
+        self.skip_prefixes
+            .iter()
+            .any(|prefix| path.starts_with(prefix))
+    }
+
+    fn est_omittendus_nomine(&self, name: &OsStr) -> bool {
+        self.skip_dirs.contains(name)
     }
 }
 
@@ -189,7 +251,9 @@ impl Iterator for Find {
                             Err(e) => return Some(Err(e.into())),
                             Ok(entry) => match Meta::from_dir_entry(&entry) {
                                 Ok(meta) => {
-                                    self.frontier.push(meta);
+                                    if !self.est_omittendus(&meta) {
+                                        self.frontier.push(meta);
+                                    }
                                 }
                                 Err(e) => {
                                     return Some(Err(e));

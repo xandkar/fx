@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ffi::OsString,
     fs,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
@@ -33,6 +34,16 @@ pub struct Cmd {
     #[clap(long = "sha")]
     enable_sha2_512_pass: bool,
 
+    /// Skip all directories with this name.
+    /// (This option can be used multiple times)
+    #[clap(long, default_value = "")]
+    skip_dir: Vec<OsString>,
+
+    /// Skip all paths starting with this prefix.
+    /// (This option can be used multiple times)
+    #[clap(long, default_value = "")]
+    skip_prefix: Vec<PathBuf>,
+
     #[clap(default_value = ".")]
     root_path: PathBuf,
 }
@@ -52,6 +63,8 @@ impl Cmd {
             self.chunk_size,
             self.enable_blake3_pass,
             self.enable_sha2_512_pass,
+            &self.skip_dir[..],
+            &self.skip_prefix[..],
         )?;
         Ok(())
     }
@@ -64,21 +77,27 @@ pub fn dups(
     chunk_size: usize,
     enable_blake3_pass: bool,
     enable_sha2_512_pass: bool,
+    skip_dirs: &[OsString],
+    skip_prefixes: &[PathBuf],
 ) -> anyhow::Result<()> {
     let mut groups: Vec<Vec<Meta>> = {
         let span = tracing::debug_span!("find_files");
         let _span_guard = span.enter();
-        let files: Vec<Meta> = data::find(root_path)?
-            .filter_map(|result| match result {
-                Err(error) => {
-                    tracing::error!(?error, "Failure while finding files.");
-                    None
-                }
-                Ok(m) => Some(m),
-            })
-            .filter(Meta::is_regular_file)
-            .filter(|Meta { size, .. }| *size > 0)
-            .collect();
+        let files: Vec<Meta> = data::find_while_skipping(
+            root_path,
+            skip_dirs.to_vec(),
+            skip_prefixes.to_vec(),
+        )?
+        .filter_map(|result| match result {
+            Err(error) => {
+                tracing::error!(?error, "Failure while finding files.");
+                None
+            }
+            Ok(m) => Some(m),
+        })
+        .filter(Meta::is_regular_file)
+        .filter(|Meta { size, .. }| *size > 0)
+        .collect();
         tracing::debug!(files = files.len(), "Found.");
         vec![files]
     };
