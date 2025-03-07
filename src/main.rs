@@ -28,6 +28,11 @@ enum Cmd {
     // TODO Snap(fx::cmd::snap::Cmd), // Collect all metadata and store it.
     // TODO Diff(fx::cmd::diff::Cmd), // Compare changes in metadata in time.
     // TODO Empties.
+    // TODO Recently accessed.
+    // TODO Recently modified.
+    // TODO Recently created.
+    // TODO Group by: user, group, user & group; count; optionally print.
+    // TODO More than one link count.
 }
 
 fn main() -> anyhow::Result<()> {
