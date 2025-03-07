@@ -14,6 +14,10 @@ pub struct Cmd {
     #[clap(short = 'Z', long = "null")]
     null_line_sep: bool,
 
+    /// Quote the outputted paths.
+    #[clap(short, long = "quote")]
+    quote_paths: bool,
+
     #[clap(default_value = ".")]
     root_path: PathBuf,
 }
@@ -27,13 +31,17 @@ impl Cmd {
             .context(format!("Failed to canonicalize path={:?}", given))?;
         tracing::debug!(?given, ?canonicalized, "Canonicalized root path.");
         let root_path = canonicalized;
-        loops(&root_path, self.null_line_sep)?;
+        loops(&root_path, self.quote_paths, self.null_line_sep)?;
         Ok(())
     }
 }
 
 #[tracing::instrument]
-pub fn loops(root_path: &Path, null_line_sep: bool) -> anyhow::Result<()> {
+pub fn loops(
+    root_path: &Path,
+    quote_paths: bool,
+    null_line_sep: bool,
+) -> anyhow::Result<()> {
     let sep = if null_line_sep { "\0" } else { "\n" }.to_string();
     let mut index: HashMap<u64, HashSet<PathBuf>> = HashMap::new();
     for link_meta in data::find(root_path)?
@@ -49,7 +57,11 @@ pub fn loops(root_path: &Path, null_line_sep: bool) -> anyhow::Result<()> {
     }
     for (_looping_inode, entry_paths) in index {
         for entry_path in entry_paths {
-            print!("{entry_path:?}{sep}");
+            if quote_paths {
+                print!("{entry_path:?}{sep}");
+            } else {
+                print!("{}{sep}", entry_path.display());
+            }
         }
         print!("{sep}");
     }

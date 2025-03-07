@@ -44,6 +44,15 @@ pub struct Cmd {
     #[clap(long)]
     skip_prefix: Vec<PathBuf>,
 
+    /// Separate output lines/records with a null (\0)
+    /// instead of linefeed (\n) character.
+    #[clap(short = 'Z', long = "null")]
+    null_line_sep: bool,
+
+    /// Quote the outputted paths.
+    #[clap(short, long = "quote")]
+    quote_paths: bool,
+
     #[clap(default_value = ".")]
     root_path: PathBuf,
 }
@@ -65,6 +74,8 @@ impl Cmd {
             self.enable_sha2_512_pass,
             &self.skip_dir[..],
             &self.skip_prefix[..],
+            self.quote_paths,
+            self.null_line_sep,
         )?;
         Ok(())
     }
@@ -79,6 +90,8 @@ pub fn dups(
     enable_sha2_512_pass: bool,
     skip_dirs: &[OsString],
     skip_prefixes: &[PathBuf],
+    quote_paths: bool,
+    null_line_sep: bool,
 ) -> anyhow::Result<()> {
     let mut groups: Vec<Vec<Meta>> = {
         let span = tracing::debug_span!("find_files");
@@ -118,11 +131,16 @@ pub fn dups(
 
     // TODO Optional last pass should be byte-by-bye comparisson.
 
-    tracing::debug!(groups = groups.len(), "Reporting.");
+    let sep = if null_line_sep { "\0" } else { "\n" }.to_string();
+    tracing::debug!(groups = groups.len(), ?sep, "Reporting.");
     for group in groups {
         // TODO Lister grouper outputs.
         for file in group {
-            println!("{}", &file.path.display())
+            if quote_paths {
+                print!("{:?}{}", &file.path, sep);
+            } else {
+                print!("{}{}", &file.path.display(), sep);
+            }
         }
         println!();
     }
