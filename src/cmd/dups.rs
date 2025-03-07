@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     fs,
-    io::{Read, Seek, SeekFrom},
+    io::{self, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -199,36 +199,12 @@ fn groupers(
         // 2: by head bytes
         (
             tracing::debug_span!("group_by_sample_head"),
-            Box::new(
-                move |Meta {
-                          path, size: total, ..
-                      }| {
-                    let head_size =
-                        std::cmp::min(usize::try_from(*total)?, sample_size);
-                    let mut file = fs::File::open(path)?;
-                    let mut buf = vec![0u8; head_size];
-                    file.read(&mut buf)?;
-                    Ok(buf)
-                },
-            ),
+            Box::new(move |m| read_head(m, sample_size)),
         ),
         // 3: by mid bytes
         (
             tracing::debug_span!("group_by_sample_mid"),
-            Box::new(
-                move |Meta {
-                          path, size: total, ..
-                      }| {
-                    let start: u64 = total / u64::try_from(sample_size)? / 2;
-                    let len: usize =
-                        std::cmp::min(usize::try_from(*total)?, sample_size);
-                    let mut file = fs::File::open(path)?;
-                    file.seek(SeekFrom::Start(start))?;
-                    let mut buf = vec![0u8; len];
-                    file.read(&mut buf)?;
-                    Ok(buf)
-                },
-            ),
+            Box::new(move |m| read_mid(m, sample_size)),
         ),
         // 4: by hash: xxh
         (
@@ -254,4 +230,55 @@ fn groupers(
         ));
     }
     groupers
+}
+
+fn read_head(
+    Meta {
+        path, size: total, ..
+    }: &Meta,
+    sample_size: usize,
+) -> anyhow::Result<Vec<u8>> {
+    let offset = SeekFrom::Start(0);
+    let amount = std::cmp::min(usize::try_from(*total)?, sample_size);
+    let data = read(path, amount, offset)?;
+    Ok(data)
+}
+
+fn read_mid(
+    Meta {
+        path, size: total, ..
+    }: &Meta,
+    sample_size: usize,
+) -> anyhow::Result<Vec<u8>> {
+    let offset = SeekFrom::Start(total / u64::try_from(sample_size)? / 2);
+    let amount: usize = std::cmp::min(usize::try_from(*total)?, sample_size);
+    let data = read(path, amount, offset)?;
+    Ok(data)
+}
+
+fn read(path: &Path, amount: usize, offset: SeekFrom) -> io::Result<Vec<u8>> {
+    let mut file = fs::File::open(path)?;
+    file.seek(offset)?;
+    let mut buf = vec![0u8; amount];
+    let mut read_total = 0;
+    while read_total < amount {
+        match file.read(&mut buf[read_total..]) {
+            Ok(read_current) => {
+                read_total += read_current;
+            }
+            Err(e) => {
+                if let io::ErrorKind::Interrupted = e.kind() {
+                    tracing::warn!(
+                        ?path,
+                        read_total,
+                        "File read interrupted. Retrying."
+                    );
+                    continue;
+                } else {
+                    return Err(e.into());
+                }
+            }
+        }
+    }
+    Ok(buf)
 }
