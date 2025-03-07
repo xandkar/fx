@@ -275,7 +275,7 @@ fn read(path: &Path, amount: usize, offset: SeekFrom) -> io::Result<Vec<u8>> {
                     );
                     continue;
                 } else {
-                    return Err(e.into());
+                    return Err(e);
                 }
             }
         }
