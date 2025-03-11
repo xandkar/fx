@@ -176,9 +176,7 @@ where
                 let mut refined_groups: HashMap<Vec<u8>, Vec<Meta>> =
                     HashMap::new();
                 for (id, member) in group
-                    // XXX Parallelizing here seems to make things ~20% slower.
-                    // .par_iter()
-                    .iter()
+                    .par_iter()
                     .filter_map(|member| {
                         let group_span = group_span.clone();
                         let _group_span_guard = group_span.enter();
