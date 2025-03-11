@@ -8,7 +8,9 @@ use std::{
 };
 
 use anyhow::Context;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 
 use crate::{
     data::{self, Meta},
@@ -81,7 +83,7 @@ impl Cmd {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 pub fn dups(
     root_path: &Path,
     sample_size: usize,
@@ -125,8 +127,7 @@ pub fn dups(
         enable_blake3_pass,
         enable_sha2_512_pass,
     ) {
-        let _span_guard = span.enter();
-        groups = refine(&groups, f)?;
+        groups = refine(span, &groups, f)?;
     }
 
     // TODO Optional last pass should be byte-by-bye comparisson.
@@ -149,34 +150,55 @@ pub fn dups(
 }
 
 fn refine<F>(
+    span: tracing::Span,
     groups: &Vec<Vec<Meta>>,
     grouper: F,
 ) -> anyhow::Result<Vec<Vec<Meta>>>
 where
     F: Send + Sync + Fn(&Meta) -> anyhow::Result<Vec<u8>>,
 {
+    let _span_guard = span.enter();
     tracing::debug!(groups = groups.len(), "Refining.");
     let grouper = Arc::new(grouper);
     let refined_groups: Vec<Vec<Meta>> = groups
         .par_iter()
+        .enumerate()
         .map({
-            |group| {
+            |(group_seq, group)| {
+                let parent_span = span.clone();
+                let _parent_span_guard = parent_span.enter();
+                let group_span = tracing::trace_span!(
+                    "group",
+                    seq = group_seq,
+                    mem = group.len()
+                );
+                let _group_span_guard = group_span.enter();
                 let mut refined_groups: HashMap<Vec<u8>, Vec<Meta>> =
                     HashMap::new();
                 for (id, member) in group
                     // XXX Parallelizing here seems to make things ~20% slower.
                     // .par_iter()
                     .iter()
-                    .filter_map(|member| match grouper(member) {
-                        Err(error) => {
-                            tracing::error!(
-                                ?error,
-                                file = ?member.path,
-                                "Failed to process."
-                            );
-                            None
+                    .filter_map(|member| {
+                        let group_span = group_span.clone();
+                        let _group_span_guard = group_span.enter();
+                        let member_span = tracing::trace_span!(
+                            "member",
+                            path = ?member.path,
+                            size = member.size,
+                        );
+                        let _member_span_guard = member_span.enter();
+                        match grouper(member) {
+                            Err(error) => {
+                                tracing::error!(
+                                    ?error,
+                                    file = ?member.path,
+                                    "Failed to process."
+                                );
+                                None
+                            }
+                            Ok(id) => Some((id, member.clone())),
                         }
-                        Ok(id) => Some((id, member.clone())),
                     })
                     .collect::<Vec<(Vec<u8>, Meta)>>()
                 {
@@ -257,7 +279,8 @@ fn read_head(
     sample_size: usize,
 ) -> anyhow::Result<Vec<u8>> {
     let offset = SeekFrom::Start(0);
-    let amount = std::cmp::min(usize::try_from(*total)?, sample_size);
+    let total = usize::try_from(*total)?;
+    let amount = std::cmp::min(total, sample_size);
     let data = read(path, amount, offset)?;
     Ok(data)
 }
@@ -269,11 +292,13 @@ fn read_mid(
     sample_size: usize,
 ) -> anyhow::Result<Vec<u8>> {
     let offset = SeekFrom::Start(total / u64::try_from(sample_size)? / 2);
-    let amount: usize = std::cmp::min(usize::try_from(*total)?, sample_size);
+    let total = usize::try_from(*total)?;
+    let amount: usize = std::cmp::min(total, sample_size);
     let data = read(path, amount, offset)?;
     Ok(data)
 }
 
+#[tracing::instrument(level = "trace")]
 fn read(path: &Path, amount: usize, offset: SeekFrom) -> io::Result<Vec<u8>> {
     let mut file = fs::File::open(path)?;
     file.seek(offset)?;
