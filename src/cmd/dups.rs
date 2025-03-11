@@ -281,6 +281,16 @@ fn read(path: &Path, amount: usize, offset: SeekFrom) -> io::Result<Vec<u8>> {
     let mut read_total = 0;
     while read_total < amount {
         match file.read(&mut buf[read_total..]) {
+            // File could've been modified after we determined the amount.
+            Ok(0) => {
+                tracing::warn!(
+                    ?path,
+                    amount,
+                    read_total,
+                    "Reached EOF sooner than expected."
+                );
+                break;
+            }
             Ok(read_current) => {
                 read_total += read_current;
             }
