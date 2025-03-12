@@ -1,6 +1,6 @@
 [package]
 name = "fx"
-version = "0.11.3"
+version = "0.11.4"
 description = "Filetree eXploratory analyzer"
 repository = "https://github.com/xandkar/fx"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]
@@ -13,7 +13,7 @@ edition = "2024"
 [dependencies]
 anyhow = { version = "1.0.96", features = ["backtrace"] }
 blake3 = "1.6.1"
-bytesize = "1.3.0"
+bytesize = "2.0.1"
 clap = { version = "4.5.30", features = ["derive"] }
 comfy-table = "7.1.4"
 dashmap = "6.1.0"
