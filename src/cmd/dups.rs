@@ -38,12 +38,12 @@ pub struct Cmd {
 
     /// Skip all directories with this name.
     /// (This option can be used multiple times)
-    #[clap(long)]
+    #[clap(short = 'd', long)]
     skip_dir: Vec<OsString>,
 
     /// Skip all paths starting with this prefix.
     /// (This option can be used multiple times)
-    #[clap(long)]
+    #[clap(short = 'p', long)]
     skip_prefix: Vec<PathBuf>,
 
     /// Separate output lines/records with a null (\0)
